@@ -659,13 +659,13 @@
             currentPage.users = page;
             const keyword = document.getElementById('userSearch').value;
             const role = document.getElementById('roleFilter').value;
-            const gender = document.getElementById('genderFilter').value;
             
             try {
                 showLoading();
-                let url = `/api/users?page=${page}&limit=20`;
+                let url = `/api/admin/users?page=${page}&limit=20`;
                 if (role) url += `&role=${role}`;
-                if (gender) url += `&gender=${gender}`;
+                const bannedFilter = document.getElementById('bannedFilter');
+                if (bannedFilter && bannedFilter.value) url += `&banned=${bannedFilter.value}`;
                 if (keyword) url += `&keyword=${encodeURIComponent(keyword)}`;
                 
                 const resp = await apiCall(url);
