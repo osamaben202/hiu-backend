@@ -80,7 +80,14 @@ app.get('/', (req, res) => {
 
 // 健康检查
 app.get('/health', (req, res) => {
+
+// API health check (used by Flutter app)});
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
+
+// API health check (used by Flutter app)
+app.get('/api/health', (req, res) => {
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
 });
 
 // API路由
