@@ -2,9 +2,10 @@
  * 管理后台路由
  */
 const express = require('express');
-const { query } = require('../models/db');
+const { query, transaction } = require('../models/db');
 const { auth, adminAuth } = require('../middleware/auth');
 const response = require('../utils/response');
+const bcrypt = require('bcryptjs');
 
 const router = express.Router();
 
@@ -36,19 +37,33 @@ router.get('/stats', auth, adminAuth, async (req, res) => {
  */
 router.get('/users', auth, adminAuth, async (req, res) => {
     try {
-        const { page = 1, limit = 20, role } = req.query;
+        const { page = 1, limit = 20, role, banned } = req.query;
         const offset = (page - 1) * limit;
         
-        let sql = 'SELECT id, account, nickname, gender, role, coin_balance, diamond_balance, is_banned, created_at FROM users';
+        let sql = 'SELECT id, account, nickname, gender, role, coin_balance, diamond_balance, is_banned, created_at FROM users WHERE 1=1';
         const params = [];
         
         if (role) {
-            sql += ' WHERE role = $1';
             params.push(role);
+            sql += ` AND role = $${params.length}`;
         }
         
-        sql += ' ORDER BY created_at DESC LIMIT $' + (params.length + 1) + ' OFFSET $' + (params.length + 2);
+        if (banned === 'active') {
+            sql += ' AND is_banned = false';
+        } else if (banned === 'banned') {
+            sql += ' AND is_banned = true';
+        }
+        
+        sql += ' ORDER BY created_at DESC';
+        
+        // Count total
+        const countSql = sql.replace('SELECT id, account, nickname, gender, role, coin_balance, diamond_balance, is_banned, created_at', 'SELECT COUNT(*) as count');
+        const countResult = await query(countSql, params);
+        const total = parseInt(countResult.rows[0].count);
+        
+        // Add pagination
         params.push(limit, offset);
+        sql += ` LIMIT $${params.length - 1} OFFSET $${params.length}`;
         
         const result = await query(sql, params);
         
@@ -56,9 +71,98 @@ router.get('/users', auth, adminAuth, async (req, res) => {
             list: result.rows,
             page: parseInt(page),
             limit: parseInt(limit),
+            total: total,
+            totalPages: Math.ceil(total / limit),
         });
     } catch (error) {
         return response.serverError(res, 'Failed to get users');
+    }
+});
+
+/**
+ * POST /api/admin/users/create
+ * 创建用户
+ */
+router.post('/users/create', auth, adminAuth, async (req, res) => {
+    try {
+        const { account, password, nickname, role, gender, coins, diamonds } = req.body;
+        
+        // 验证必填参数
+        if (!account || !password) {
+            return response.badRequest(res, '账号和密码不能为空');
+        }
+        
+        // 验证角色
+        const validRoles = ['user', 'host', 'agent', 'admin'];
+        if (role && !validRoles.includes(role)) {
+            return response.badRequest(res, '无效的角色');
+        }
+        
+        // 验证性别
+        const validGenders = ['male', 'female', 'unknown'];
+        if (gender && !validGenders.includes(gender)) {
+            return response.badRequest(res, '无效的性别');
+        }
+        
+        // 检查账号是否已存在
+        const existing = await query('SELECT id FROM users WHERE account = $1', [account]);
+        if (existing.rows.length > 0) {
+            return response.badRequest(res, '账号已存在');
+        }
+        
+        // 加密密码
+        const hashedPassword = await bcrypt.hash(password, 10);
+        
+        // 使用事务创建用户
+        const result = await transaction(async (client) => {
+            const userResult = await client.query(
+                `INSERT INTO users (account, password, nickname, role, gender, coin_balance, diamond_balance, is_banned, created_at) 
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, false, CURRENT_TIMESTAMP) 
+                 RETURNING id, account, nickname, role, gender, coin_balance, diamond_balance, is_banned, created_at`,
+                [account, hashedPassword, nickname || account, role || 'user', gender || 'unknown', coins || 0, diamonds || 0]
+            );
+            
+            const newUser = userResult.rows[0];
+            
+            // 如果角色是agent，自动创建agent记录
+            if (role === 'agent') {
+                const agentPassword = '123456'; // 代理默认密码
+                const hashedAgentPassword = await bcrypt.hash(agentPassword, 10);
+                await client.query(
+                    `INSERT INTO agents (user_id, password, status, created_at) VALUES ($1, $2, 'active', CURRENT_TIMESTAMP)`,
+                    [newUser.id, hashedAgentPassword]
+                );
+            }
+            
+            return newUser;
+        });
+        
+        return response.success(res, result, '用户创建成功');
+    } catch (error) {
+        console.error('Create user error:', error);
+        return response.serverError(res, 'Failed to create user');
+    }
+});
+
+/**
+ * PUT /api/admin/users/:id/reset-password
+ * 重置用户密码
+ */
+router.put('/users/:id/reset-password', auth, adminAuth, async (req, res) => {
+    try {
+        const { new_password } = req.body;
+        
+        if (!new_password) {
+            return response.badRequest(res, '新密码不能为空');
+        }
+        
+        const hashedPassword = await bcrypt.hash(new_password, 10);
+        await query('UPDATE users SET password = $1 WHERE id = $2', [hashedPassword, req.params.id]);
+        
+        return response.success(res, null, '密码重置成功');
+    } catch (error) {
+        console.error('Reset password error:', error);
+        return response.serverError(res, 'Failed to reset password');
     }
 });
 
