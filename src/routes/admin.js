@@ -115,7 +115,7 @@ router.post('/users/create', auth, adminAuth, async (req, res) => {
         // 使用事务创建用户
         const result = await transaction(async (client) => {
             const userResult = await client.query(
-                `INSERT INTO users (account, password, nickname, role, gender, coin_balance, diamond_balance, is_banned, created_at) 
+                `INSERT INTO users (account, password_hash, nickname, role, gender, coin_balance, diamond_balance, is_banned, created_at) 
                  VALUES ($1, $2, $3, $4, $5, $6, $7, false, CURRENT_TIMESTAMP) 
                  RETURNING id, account, nickname, role, gender, coin_balance, diamond_balance, is_banned, created_at`,
                 [account, hashedPassword, nickname || account, role || 'user', gender || 'unknown', coins || 0, diamonds || 0]
@@ -128,7 +128,7 @@ router.post('/users/create', auth, adminAuth, async (req, res) => {
                 const agentPassword = '123456'; // 代理默认密码
                 const hashedAgentPassword = await bcrypt.hash(agentPassword, 10);
                 await client.query(
-                    `INSERT INTO agents (user_id, password, status, created_at) VALUES ($1, $2, 'active', CURRENT_TIMESTAMP)`,
+                    `INSERT INTO agents (user_id, distribute_password_hash, status, created_at) VALUES ($1, $2, 'active', CURRENT_TIMESTAMP)`,
                     [newUser.id, hashedAgentPassword]
                 );
             }
@@ -140,7 +140,7 @@ router.post('/users/create', auth, adminAuth, async (req, res) => {
     } catch (error) {
         console.error('Create user error:', error);
         console.error('Failed to create user:', error.message);
-        return res.status(500).json({code: -500, message: 'Failed to create user', error: error.message});
+        return response.serverError(res, 'Failed to create user');
     }
 });
 
