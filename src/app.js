@@ -22,6 +22,9 @@ const videoRoutes = require('./routes/video');
 // 导入Socket.IO
 const { initSocket } = require('./socket');
 
+// 导入数据库初始化
+const { initDatabase } = require('./models/init-db');
+
 const app = express();
 const server = http.createServer(app);
 
@@ -61,7 +64,7 @@ app.use('/api/diamonds', diamondRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/video', videoRoutes);
 
-// 文件上传接口（示例）
+// 文件上传接口
 const multer = require('multer');
 const path = require('path');
 
@@ -77,7 +80,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({ 
     storage,
-    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+    limits: { fileSize: 5 * 1024 * 1024 },
     fileFilter: (req, file, cb) => {
         const allowedTypes = /jpeg|jpg|png|gif|webp/;
         const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
@@ -138,20 +141,33 @@ app.use((err, req, res, next) => {
 // 初始化Socket.IO
 initSocket(io);
 
-// 启动服务器
+// 启动服务器 - 先初始化数据库再启动
 const PORT = config.port;
-server.listen(PORT, () => {
-    console.log('');
-    console.log('╔════════════════════════════════════════════════════════════╗');
-    console.log('║                                                            ║');
-    console.log('║   🎤  HIU Voice Room App Server                            ║');
-    console.log('║                                                            ║');
-    console.log(`║   🌐  Server running on port: ${PORT}                         ║`);
-    console.log(`║   📦  Environment: ${config.env}                                ║`);
-    console.log('║                                                            ║');
-    console.log('╚════════════════════════════════════════════════════════════╝');
-    console.log('');
-});
+
+async function startServer() {
+    try {
+        // 初始化数据库
+        await initDatabase();
+        
+        server.listen(PORT, () => {
+            console.log('');
+            console.log('╔════════════════════════════════════════════════════════════╗');
+            console.log('║                                                            ║');
+            console.log('║   🎤  HIU Voice Room App Server                            ║');
+            console.log('║                                                            ║');
+            console.log(`║   🌐  Server running on port: ${PORT}                         ║`);
+            console.log(`║   📦  Environment: ${config.env}                                ║`);
+            console.log('║                                                            ║');
+            console.log('╚════════════════════════════════════════════════════════════╝');
+            console.log('');
+        });
+    } catch (error) {
+        console.error('Failed to start server:', error);
+        process.exit(1);
+    }
+}
+
+startServer();
 
 // 优雅关闭
 process.on('SIGTERM', () => {
