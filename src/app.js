@@ -6,6 +6,8 @@ require('dotenv').config();
 const express = require('express');
 const http = require('http');
 const cors = require('cors');
+const fs = require('fs');
+const path = require('path');
 const { Server } = require('socket.io');
 const config = require('./config');
 
@@ -50,7 +52,7 @@ app.use((req, res, next) => {
     next();
 });
 
-// 根路径 - API状态页面
+// 根路径
 app.get('/', (req, res) => {
     res.send(`<!DOCTYPE html>
     <html>
@@ -58,36 +60,17 @@ app.get('/', (req, res) => {
     <body style="font-family:sans-serif;max-width:600px;margin:50px auto;padding:20px">
     <h1 style="color:#6C5CE7">🎤 HIU Voice Room App</h1>
     <p>Backend is running!</p>
-    <h3>API Endpoints:</h3>
-    <ul>
-    <li><code>POST /api/auth/register</code> - Auto register</li>
-    <li><code>POST /api/auth/login</code> - Login</li>
-    <li><code>GET /api/rooms</code> - Room list</li>
-    <li><code>GET /api/gifts</code> - Gift list</li>
-    <li><code>GET /api/admin/*</code> - Admin APIs</li>
-    </ul>
-    <h3>Test Accounts:</h3>
-    <table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse">
-    <tr><th>Account</th><th>Password</th><th>Role</th></tr>
-    <tr><td>A100001</td><td>admin123</td><td>Admin</td></tr>
-    <tr><td>AG001</td><td>agent123</td><td>Agent</td></tr>
-    <tr><td>H100001</td><td>host123</td><td>Host</td></tr>
-    <tr><td>U100001</td><td>user123</td><td>User</td></tr>
-    </table>
-    <p style="margin-top:20px;color:gray">Powered by HIU Backend</p>
     </body></html>`);
 });
 
 // 健康检查
 app.get('/health', (req, res) => {
-
-// API health check (used by Flutter app)});
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
 
 // API health check (used by Flutter app)
 app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
 });
 
 // API路由
@@ -101,18 +84,14 @@ app.use('/api/chat', chatRoutes);
 app.use('/api/video', videoRoutes);
 app.use('/api/admin', adminRoutes);
 
-// 文件上传接口
 // Ensure uploads directory exists
 if (!fs.existsSync('uploads')) fs.mkdirSync('uploads', { recursive: true });
 
+// 文件上传接口
 const multer = require('multer');
-const path = require('path');
-const fs = require('fs');
 
 const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, 'uploads/');
-    },
+    destination: (req, file, cb) => { cb(null, 'uploads/'); },
     filename: (req, file, cb) => {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
         cb(null, uniqueSuffix + path.extname(file.originalname));
@@ -126,25 +105,18 @@ const upload = multer({
         const allowedTypes = /jpeg|jpg|png|gif|webp/;
         const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
         const mimetype = allowedTypes.test(file.mimetype);
-        
-        if (extname && mimetype) {
-            return cb(null, true);
-        }
+        if (extname && mimetype) return cb(null, true);
         cb(new Error('Only image files are allowed'));
     },
 });
 
 app.post('/api/upload/avatar', upload.single('avatar'), (req, res) => {
-    if (!req.file) {
-        return res.status(400).json({ code: -1, message: 'No file uploaded' });
-    }
+    if (!req.file) return res.status(400).json({ code: -1, message: 'No file uploaded' });
     res.json({ code: 0, message: 'Upload success', data: { url: `/uploads/${req.file.filename}` } });
 });
 
 app.post('/api/upload/image', upload.single('image'), (req, res) => {
-    if (!req.file) {
-        return res.status(400).json({ code: -1, message: 'No file uploaded' });
-    }
+    if (!req.file) return res.status(400).json({ code: -1, message: 'No file uploaded' });
     res.json({ code: 0, message: 'Upload success', data: { url: `/uploads/${req.file.filename}` } });
 });
 
@@ -174,13 +146,7 @@ async function startServer() {
     try {
         await initDatabase();
         server.listen(PORT, () => {
-            console.log('');
-            console.log('╔════════════════════════════════════════════════════════════╗');
-            console.log('║   🎤  HIU Voice Room App Server                            ║');
-            console.log(`║   🌐  Server running on port: ${PORT}                         ║`);
-            console.log(`║   📦  Environment: ${config.env}                                ║`);
-            console.log('╚════════════════════════════════════════════════════════════╝');
-            console.log('');
+            console.log(`🎤 HIU Server running on port: ${PORT}`);
         });
     } catch (error) {
         console.error('Failed to start server:', error);
