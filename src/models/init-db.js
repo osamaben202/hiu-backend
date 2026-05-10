@@ -57,6 +57,15 @@ async function runMigrations() {
             console.log('✅ 迁移：添加 signature 列');
         }
         
+        
+        // 确保管理员账号密码正确
+        const adminPassword = await bcrypt.hash('admin123', 10);
+        await pool.query(
+            'UPDATE users SET password_hash = $1 WHERE account = \'A100001\'',
+            [adminPassword]
+        );
+        console.log('✅ 管理员密码已同步');
+
         console.log('✅ 迁移检查完成');
     } catch (error) {
         console.error('❌ 迁移失败:', error.message);
