@@ -75,6 +75,7 @@ router.get('/users', auth, adminAuth, async (req, res) => {
             totalPages: Math.ceil(total / limit),
         });
     } catch (error) {
+        console.error('Failed to get users:', error.message);
         return response.serverError(res, 'Failed to get users');
     }
 });
@@ -140,6 +141,7 @@ router.post('/users/create', auth, adminAuth, async (req, res) => {
         return response.success(res, result, '用户创建成功');
     } catch (error) {
         console.error('Create user error:', error);
+        console.error('Failed to create user:', error.message);
         return response.serverError(res, 'Failed to create user');
     }
 });
