@@ -140,7 +140,7 @@ app.post('/api/upload/image', upload.single('image'), (req, res) => {
 app.use('/uploads', express.static('uploads'));
 
 // Admin Dashboard 静态文件
-app.use('/admin', express.static(path.join(__dirname, '../public')));
+app.use('/admin', express.static(path.join(__dirname, '../public'), { index: 'admin.html' }));
 
 // 404处理
 app.use((req, res) => {
