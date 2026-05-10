@@ -317,3 +317,36 @@ router.put('/config/:key', auth, adminAuth, async (req, res) => {
 });
 
 module.exports = router;
+
+/**
+ * POST /api/admin/migrate
+ * 手动触发数据库迁移
+ */
+router.post('/migrate', auth, adminAuth, async (req, res) => {
+    try {
+        const { pool } = require('../models/db');
+        
+        // 检查并添加 is_banned 列
+        const colCheck = await pool.query(
+            "SELECT column_name FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'is_banned'"
+        );
+        if (colCheck.rows.length === 0) {
+            await pool.query('ALTER TABLE users ADD COLUMN is_banned BOOLEAN DEFAULT FALSE');
+            console.log('✅ 迁移：添加 is_banned 列');
+        }
+        
+        // 检查并添加 signature 列
+        const sigCheck = await pool.query(
+            "SELECT column_name FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'signature'"
+        );
+        if (sigCheck.rows.length === 0) {
+            await pool.query("ALTER TABLE users ADD COLUMN signature VARCHAR(200) DEFAULT ''");
+            console.log('✅ 迁移：添加 signature 列');
+        }
+        
+        return response.success(res, { message: '迁移完成' });
+    } catch (error) {
+        console.error('迁移失败:', error.message);
+        return response.serverError(res, '迁移失败: ' + error.message);
+    }
+});
