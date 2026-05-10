@@ -18,7 +18,7 @@ const coinRoutes = require('./routes/coins');
 const diamondRoutes = require('./routes/diamonds');
 const chatRoutes = require('./routes/chat');
 const videoRoutes = require('./routes/video');
-const adminRoutes = require("./routes/admin");
+const adminRoutes = require('./routes/admin');
 
 // 导入Socket.IO
 const { initSocket } = require('./socket');
@@ -50,15 +50,9 @@ app.use((req, res, next) => {
     next();
 });
 
-// 健康检查
-app.get('/health', (req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-
 // 根路径 - API状态页面
-app.get("/", (req, res) => {
-    res.send(`
-    <!DOCTYPE html>
+app.get('/', (req, res) => {
+    res.send(`<!DOCTYPE html>
     <html>
     <head><title>HIU Backend</title></head>
     <body style="font-family:sans-serif;max-width:600px;margin:50px auto;padding:20px">
@@ -81,9 +75,12 @@ app.get("/", (req, res) => {
     <tr><td>U100001</td><td>user123</td><td>User</td></tr>
     </table>
     <p style="margin-top:20px;color:gray">Powered by HIU Backend</p>
-    </body></html>
-    `);
+    </body></html>`);
 });
+
+// 健康检查
+app.get('/health', (req, res) => {
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
 // API路由
@@ -126,35 +123,20 @@ const upload = multer({
     },
 });
 
-// 上传头像
 app.post('/api/upload/avatar', upload.single('avatar'), (req, res) => {
     if (!req.file) {
         return res.status(400).json({ code: -1, message: 'No file uploaded' });
     }
-    
-    const avatarUrl = `/uploads/${req.file.filename}`;
-    res.json({ 
-        code: 0, 
-        message: 'Upload success',
-        data: { url: avatarUrl }
-    });
+    res.json({ code: 0, message: 'Upload success', data: { url: `/uploads/${req.file.filename}` } });
 });
 
-// 上传聊天图片
 app.post('/api/upload/image', upload.single('image'), (req, res) => {
     if (!req.file) {
         return res.status(400).json({ code: -1, message: 'No file uploaded' });
     }
-    
-    const imageUrl = `/uploads/${req.file.filename}`;
-    res.json({ 
-        code: 0, 
-        message: 'Upload success',
-        data: { url: imageUrl }
-    });
+    res.json({ code: 0, message: 'Upload success', data: { url: `/uploads/${req.file.filename}` } });
 });
 
-// 静态文件服务
 app.use('/uploads', express.static('uploads'));
 
 // 404处理
@@ -165,32 +147,24 @@ app.use((req, res) => {
 // 错误处理
 app.use((err, req, res, next) => {
     console.error('[Error]', err);
-    res.status(500).json({ 
-        code: -500, 
-        message: err.message || 'Internal server error' 
-    });
+    res.status(500).json({ code: -500, message: err.message || 'Internal server error' });
 });
 
 // 初始化Socket.IO
 initSocket(io);
 
-// 启动服务器 - 先初始化数据库再启动
+// 启动服务器
 const PORT = config.port;
 
 async function startServer() {
     try {
-        // 初始化数据库
         await initDatabase();
-        
         server.listen(PORT, () => {
             console.log('');
             console.log('╔════════════════════════════════════════════════════════════╗');
-            console.log('║                                                            ║');
             console.log('║   🎤  HIU Voice Room App Server                            ║');
-            console.log('║                                                            ║');
             console.log(`║   🌐  Server running on port: ${PORT}                         ║`);
             console.log(`║   📦  Environment: ${config.env}                                ║`);
-            console.log('║                                                            ║');
             console.log('╚════════════════════════════════════════════════════════════╝');
             console.log('');
         });
@@ -202,21 +176,14 @@ async function startServer() {
 
 startServer();
 
-// 优雅关闭
 process.on('SIGTERM', () => {
     console.log('SIGTERM received, shutting down gracefully');
-    server.close(() => {
-        console.log('Server closed');
-        process.exit(0);
-    });
+    server.close(() => { process.exit(0); });
 });
 
 process.on('SIGINT', () => {
     console.log('SIGINT received, shutting down gracefully');
-    server.close(() => {
-        console.log('Server closed');
-        process.exit(0);
-    });
+    server.close(() => { process.exit(0); });
 });
 
 module.exports = { app, server, io };
