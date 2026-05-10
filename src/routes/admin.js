@@ -37,7 +37,7 @@ router.get('/stats', auth, adminAuth, async (req, res) => {
  */
 router.get('/users', auth, adminAuth, async (req, res) => {
     try {
-        const { page = 1, limit = 20, role, banned } = req.query;
+        const { page = 1, limit = 20, role, banned, keyword } = req.query;
         const offset = (page - 1) * limit;
         
         let whereSql = 'WHERE 1=1';
@@ -52,6 +52,11 @@ router.get('/users', auth, adminAuth, async (req, res) => {
             whereSql += ' AND is_banned = false';
         } else if (banned === 'banned') {
             whereSql += ' AND is_banned = true';
+        }
+        
+        if (keyword) {
+            params.push(`%${keyword}%`);
+            whereSql += ` AND (account ILIKE $${params.length} OR nickname ILIKE $${params.length})`;
         }
         
         // Count total (no ORDER BY)

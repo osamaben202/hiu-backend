@@ -102,8 +102,12 @@ app.use('/api/video', videoRoutes);
 app.use('/api/admin', adminRoutes);
 
 // 文件上传接口
+// Ensure uploads directory exists
+if (!fs.existsSync('uploads')) fs.mkdirSync('uploads', { recursive: true });
+
 const multer = require('multer');
 const path = require('path');
+const fs = require('fs');
 
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
