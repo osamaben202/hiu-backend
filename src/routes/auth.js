@@ -12,6 +12,14 @@ const response = require('../utils/response');
 const router = express.Router();
 
 /**
+ * GET /api/auth/health
+ * 健康检查
+ */
+router.get('/health', (req, res) => {
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+/**
  * POST /api/auth/register
  * 自动注册账号
  */
