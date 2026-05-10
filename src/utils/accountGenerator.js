@@ -6,7 +6,7 @@
  * 生成随机账号
  * 格式: U + 6位数字 (如 U100001)
  */
-const generateAccount = async (db) => {
+const generateAccount = async (queryFn) => {
     const prefix = 'U';
     const min = 100001;
     const max = 999999;
@@ -15,11 +15,14 @@ const generateAccount = async (db) => {
     let exists = true;
     let attempts = 0;
     
+    // 支持传入query函数或{query}对象
+    const q = typeof queryFn === 'function' ? queryFn : queryFn.query;
+    
     while (exists && attempts < 10) {
         const number = Math.floor(Math.random() * (max - min + 1)) + min;
         account = prefix + number;
         
-        const result = await db.query(
+        const result = await q(
             'SELECT id FROM users WHERE account = $1',
             [account]
         );
@@ -29,7 +32,6 @@ const generateAccount = async (db) => {
     }
     
     if (exists) {
-        // 如果随机生成失败，使用时间戳+随机数
         account = prefix + (Date.now() % 1000000);
     }
     
@@ -38,11 +40,11 @@ const generateAccount = async (db) => {
 
 /**
  * 生成随机密码
- * 长度: 6-8位字母数字混合
+ * 长度: 8位字母数字混合
  */
 const generatePassword = () => {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
-    const length = Math.floor(Math.random() * 3) + 6; // 6-8位
+    const length = 8;
     let password = '';
     
     for (let i = 0; i < length; i++) {

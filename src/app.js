@@ -18,6 +18,7 @@ const coinRoutes = require('./routes/coins');
 const diamondRoutes = require('./routes/diamonds');
 const chatRoutes = require('./routes/chat');
 const videoRoutes = require('./routes/video');
+const adminRoutes = require("./routes/admin");
 
 // 导入Socket.IO
 const { initSocket } = require('./socket');
@@ -54,6 +55,37 @@ app.get('/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// 根路径 - API状态页面
+app.get("/", (req, res) => {
+    res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head><title>HIU Backend</title></head>
+    <body style="font-family:sans-serif;max-width:600px;margin:50px auto;padding:20px">
+    <h1 style="color:#6C5CE7">🎤 HIU Voice Room App</h1>
+    <p>Backend is running!</p>
+    <h3>API Endpoints:</h3>
+    <ul>
+    <li><code>POST /api/auth/register</code> - Auto register</li>
+    <li><code>POST /api/auth/login</code> - Login</li>
+    <li><code>GET /api/rooms</code> - Room list</li>
+    <li><code>GET /api/gifts</code> - Gift list</li>
+    <li><code>GET /api/admin/*</code> - Admin APIs</li>
+    </ul>
+    <h3>Test Accounts:</h3>
+    <table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse">
+    <tr><th>Account</th><th>Password</th><th>Role</th></tr>
+    <tr><td>A100001</td><td>admin123</td><td>Admin</td></tr>
+    <tr><td>AG001</td><td>agent123</td><td>Agent</td></tr>
+    <tr><td>H100001</td><td>host123</td><td>Host</td></tr>
+    <tr><td>U100001</td><td>user123</td><td>User</td></tr>
+    </table>
+    <p style="margin-top:20px;color:gray">Powered by HIU Backend</p>
+    </body></html>
+    `);
+});
+});
+
 // API路由
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
@@ -63,6 +95,7 @@ app.use('/api/coins', coinRoutes);
 app.use('/api/diamonds', diamondRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/video', videoRoutes);
+app.use('/api/admin', adminRoutes);
 
 // 文件上传接口
 const multer = require('multer');

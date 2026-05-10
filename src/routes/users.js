@@ -41,7 +41,7 @@ router.get('/profile', auth, async (req, res) => {
  */
 router.put('/profile', auth, async (req, res) => {
     try {
-        const { nickname, avatar, signature } = req.body;
+        const { nickname, avatar, signature, gender } = req.body;
         const updates = [];
         const values = [];
         let paramCount = 1;
@@ -59,6 +59,14 @@ router.put('/profile', auth, async (req, res) => {
         if (signature !== undefined) {
             updates.push(`signature = $${paramCount++}`);
             values.push(signature);
+        }
+
+        if (gender !== undefined) {
+            if (!["male", "female", "unknown"].includes(gender)) {
+                return response.badRequest(res, "Invalid gender");
+            }
+            updates.push(`gender = $${paramCount++}`);
+            values.push(gender);
         }
         
         if (updates.length === 0) {
