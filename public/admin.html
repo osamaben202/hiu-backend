@@ -513,9 +513,9 @@
             try {
                 showLoading();
                 const data = await apiCall('/api/auth/login', 'POST', { account, password });
-                if (data.user && data.user.role === 'admin') {
-                    token = data.token;
-                    currentUser = data.user;
+                if (data.data && data.data.user && data.data.user.role === "admin") {
+                    token = data.data.token;
+                    currentUser = data.data.user;
                     localStorage.setItem('adminToken', token);
                     document.getElementById('loginPage').style.display = 'none';
                     document.getElementById('mainLayout').style.display = 'block';
@@ -595,7 +595,8 @@
                 if (gender) url += `&gender=${gender}`;
                 if (keyword) url += `&keyword=${encodeURIComponent(keyword)}`;
                 
-                const data = await apiCall(url);
+                const resp = await apiCall(url);
+                const data = resp.data;
                 const users = data.users || data.data || [];
                 
                 const tbody = document.getElementById('usersTableBody');
@@ -644,7 +645,8 @@
         // Edit user
         async function editUser(userId) {
             try {
-                const users = await apiCall('/api/users?limit=100');
+                const usersResp = await apiCall('/api/users?limit=100');
+                const users = usersResp.data;
                 const user = (users.users || users.data || []).find(u => (u.id || u._id) === userId);
                 if (user) {
                     document.getElementById('editUserId').value = userId;
@@ -717,7 +719,8 @@
         async function loadRooms() {
             try {
                 showLoading();
-                const data = await apiCall('/api/rooms');
+                const roomsResp = await apiCall('/api/rooms');
+                const data = roomsResp.data;
                 const rooms = data.rooms || data.data || [];
                 
                 const tbody = document.getElementById('roomsTableBody');
@@ -749,7 +752,8 @@
                 let url = `/api/admin/withdraw-requests?page=${page}&limit=20`;
                 if (status) url += `&status=${status}`;
                 
-                const data = await apiCall(url);
+                const resp = await apiCall(url);
+                const data = resp.data;
                 const requests = data.requests || data.data || [];
                 
                 const tbody = document.getElementById('withdrawalsTableBody');
@@ -827,7 +831,8 @@
             const configKeys = ['withdraw_rate', 'min_withdraw', 'coin_rate', 'diamond_rate'];
             for (const key of configKeys) {
                 try {
-                    const data = await apiCall(`/api/admin/config/${key}`);
+                    const resp = await apiCall(`/api/admin/config/${key}`);
+                    const data = resp.data;
                     const inputId = key.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
                     const input = document.getElementById(inputId);
                     if (input && data.value !== undefined) {
