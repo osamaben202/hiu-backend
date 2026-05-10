@@ -157,7 +157,7 @@ router.put('/users/:id/reset-password', auth, adminAuth, async (req, res) => {
         }
         
         const hashedPassword = await bcrypt.hash(new_password, 10);
-        await query('UPDATE users SET password = $1 WHERE id = $2', [hashedPassword, req.params.id]);
+        await query('UPDATE users SET password_hash = $1 WHERE id = $2', [hashedPassword, req.params.id]);
         
         return response.success(res, null, '密码重置成功');
     } catch (error) {
