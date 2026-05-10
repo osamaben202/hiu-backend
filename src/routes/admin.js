@@ -140,7 +140,7 @@ router.post('/users/create', auth, adminAuth, async (req, res) => {
     } catch (error) {
         console.error('Create user error:', error);
         console.error('Failed to create user:', error.message);
-        return response.serverError(res, 'Failed to create user');
+        return res.status(500).json({code: -500, message: 'Failed to create user', error: error.message});
     }
 });
 
