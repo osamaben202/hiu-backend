@@ -139,6 +139,9 @@ app.post('/api/upload/image', upload.single('image'), (req, res) => {
 
 app.use('/uploads', express.static('uploads'));
 
+// Admin Dashboard 静态文件
+app.use('/admin', express.static(path.join(__dirname, '../public')));
+
 // 404处理
 app.use((req, res) => {
     res.status(404).json({ code: -404, message: 'Not found' });
