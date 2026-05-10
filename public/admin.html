@@ -670,21 +670,22 @@
                 
                 const resp = await apiCall(url);
                 const data = resp.data;
-                const users = data.users || data.data || [];
+                const users = data.list || data.users || data.data || [];
                 
                 const tbody = document.getElementById('usersTableBody');
                 tbody.innerHTML = users.map(user => `
                     <tr>
                         <td>${user.id || user._id || '-'}</td>
-                        <td>${user.username || user.name || '-'}</td>
+                        <td>${user.account || '-'}<br><small style="color:var(--text-muted)">${user.nickname || ''}</small></td>
                         <td><span class="badge badge-${user.role || 'user'}">${getRoleName(user.role)}</span></td>
                         <td><span class="badge badge-${user.gender || 'male'}">${user.gender === 'female' ? '女' : '男'}</span></td>
-                        <td>${formatNumber(user.coins || 0)}</td>
-                        <td>${formatNumber(user.diamonds || 0)}</td>
-                        <td>${user.banned ? '<span class="badge badge-banned">已禁用</span>' : '<span class="badge badge-approved">正常</span>'}</td>
+                        <td>${formatNumber(user.coin_balance || 0)}</td>
+                        <td>${formatNumber(user.diamond_balance || 0)}</td>
+                        <td>${user.is_banned ? '<span class="badge badge-banned">已禁用</span>' : '<span class="badge badge-approved">正常</span>'}</td>
                         <td>
                             <button class="btn btn-primary btn-sm" onclick="editUser('${user.id || user._id}')">编辑</button>
-                            ${user.banned 
+                            <button class="btn btn-sm" style="background:#8b5cf6;color:white;padding:4px 8px;" onclick="openResetPasswordModal('${user.id || user._id}')">重置密码</button>
+                            ${user.is_banned 
                                 ? `<button class="btn btn-success btn-sm" onclick="unbanUser('${user.id || user._id}')">解禁</button>`
                                 : `<button class="btn btn-danger btn-sm" onclick="banUser('${user.id || user._id}')">禁用</button>`
                             }
@@ -939,6 +940,78 @@
                 showToast('配置已保存');
             } catch (err) {
                 showToast('保存失败: ' + err.message, 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+
+
+        // Open create user modal
+        function openCreateUserModal() {
+            document.getElementById('createAccount').value = '';
+            document.getElementById('createPassword').value = '';
+            document.getElementById('createNickname').value = '';
+            document.getElementById('createRole').value = 'user';
+            document.getElementById('createGender').value = 'unknown';
+            document.getElementById('createCoins').value = '0';
+            document.getElementById('createDiamonds').value = '0';
+            document.getElementById('createUserModal').style.display = 'flex';
+        }
+
+        // Create user
+        async function createUser() {
+            const account = document.getElementById('createAccount').value.trim();
+            const password = document.getElementById('createPassword').value.trim();
+            const nickname = document.getElementById('createNickname').value.trim();
+            const role = document.getElementById('createRole').value;
+            const gender = document.getElementById('createGender').value;
+            const coins = parseInt(document.getElementById('createCoins').value) || 0;
+            const diamonds = parseInt(document.getElementById('createDiamonds').value) || 0;
+
+            if (!account || !password) {
+                showToast('账号和密码不能为空', 'error');
+                return;
+            }
+
+            try {
+                showLoading();
+                await apiCall('/api/admin/users/create', 'POST', {
+                    account, password, nickname, role, gender, coins, diamonds
+                });
+                showToast('用户创建成功');
+                closeModal('createUserModal');
+                loadUsers(currentPage.users);
+            } catch (err) {
+                showToast('创建失败: ' + err.message, 'error');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        // Open reset password modal
+        function openResetPasswordModal(userId) {
+            document.getElementById('resetPasswordUserId').value = userId;
+            document.getElementById('newPassword').value = '';
+            document.getElementById('resetPasswordModal').style.display = 'flex';
+        }
+
+        // Reset password
+        async function resetPassword() {
+            const userId = document.getElementById('resetPasswordUserId').value;
+            const newPassword = document.getElementById('newPassword').value.trim();
+
+            if (!newPassword) {
+                showToast('新密码不能为空', 'error');
+                return;
+            }
+
+            try {
+                showLoading();
+                await apiCall(`/api/admin/users/${userId}/reset-password`, 'PUT', { new_password: newPassword });
+                showToast('密码重置成功');
+                closeModal('resetPasswordModal');
+            } catch (err) {
+                showToast('重置失败: ' + err.message, 'error');
             } finally {
                 hideLoading();
             }
