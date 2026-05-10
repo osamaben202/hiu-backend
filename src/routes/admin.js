@@ -76,7 +76,7 @@ router.get('/users', auth, adminAuth, async (req, res) => {
         });
     } catch (error) {
         console.error('Failed to get users:', error.message);
-        return response.serverError(res, 'Failed to get users');
+        return res.status(500).json({code: -500, message: "Failed to get users", error: error.message, stack: error.stack});
     }
 });
 
