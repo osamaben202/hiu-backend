@@ -40,32 +40,30 @@ router.get('/users', auth, adminAuth, async (req, res) => {
         const { page = 1, limit = 20, role, banned } = req.query;
         const offset = (page - 1) * limit;
         
-        let sql = 'SELECT id, account, nickname, gender, role, coin_balance, diamond_balance, is_banned, created_at FROM users WHERE 1=1';
+        let whereSql = 'WHERE 1=1';
         const params = [];
         
         if (role) {
             params.push(role);
-            sql += ` AND role = $${params.length}`;
+            whereSql += ` AND role = $${params.length}`;
         }
         
         if (banned === 'active') {
-            sql += ' AND is_banned = false';
+            whereSql += ' AND is_banned = false';
         } else if (banned === 'banned') {
-            sql += ' AND is_banned = true';
+            whereSql += ' AND is_banned = true';
         }
         
-        sql += ' ORDER BY created_at DESC';
-        
-        // Count total
-        const countSql = sql.replace('SELECT id, account, nickname, gender, role, coin_balance, diamond_balance, is_banned, created_at', 'SELECT COUNT(*) as count');
-        const countResult = await query(countSql, params);
+        // Count total (no ORDER BY)
+        const countResult = await query(`SELECT COUNT(*) as count FROM users ${whereSql}`, params);
         const total = parseInt(countResult.rows[0].count);
         
-        // Add pagination
-        params.push(limit, offset);
-        sql += ` LIMIT $${params.length - 1} OFFSET $${params.length}`;
-        
-        const result = await query(sql, params);
+        // Get users with pagination
+        params.push(parseInt(limit), parseInt(offset));
+        const result = await query(
+            `SELECT id, account, nickname, gender, role, coin_balance, diamond_balance, is_banned, created_at FROM users ${whereSql} ORDER BY created_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`,
+            params
+        );
         
         return response.success(res, {
             list: result.rows,
@@ -76,7 +74,7 @@ router.get('/users', auth, adminAuth, async (req, res) => {
         });
     } catch (error) {
         console.error('Failed to get users:', error.message);
-        return res.status(500).json({code: -500, message: "Failed to get users", error: error.message, stack: error.stack});
+        return response.serverError(res, 'Failed to get users');
     }
 });
 
