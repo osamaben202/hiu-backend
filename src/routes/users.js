@@ -232,6 +232,35 @@ router.put('/role/:userId', auth, adminAuth, async (req, res) => {
 });
 
 /**
+ * GET /api/users/search
+ * 按账号/ID搜索用户
+ */
+router.get('/search', auth, async (req, res) => {
+    try {
+        const { account, keyword } = req.query;
+        const searchTerm = account || keyword;
+        
+        if (!searchTerm || searchTerm.trim() === '') {
+            return response.badRequest(res, '搜索内容不能为空');
+        }
+        
+        // 支持按账号或昵称模糊搜索
+        const result = await query(
+            `SELECT id, account, nickname, avatar, gender, role, signature, created_at
+             FROM users 
+             WHERE (account ILIKE $1 OR nickname ILIKE $1) AND is_banned = false
+             LIMIT 20`,
+            [\`%\${searchTerm.trim()}%\`]
+        );
+        
+        return response.success(res, result.rows);
+    } catch (error) {
+        console.error('Search user error:', error);
+        return response.serverError(res, '搜索失败');
+    }
+});
+
+/**
  * GET /api/users/:userId
  * 获取其他用户公开信息
  */
@@ -318,32 +347,3 @@ router.get('/', auth, adminAuth, async (req, res) => {
 
 module.exports = router;
 
-/**
- * GET /api/users/search
- * 按账号/ID搜索用户
- */
-router.get('/search', auth, async (req, res) => {
-    try {
-        const { account } = req.query;
-        
-        if (!account || account.trim() === '') {
-            return response.badRequest(res, '账号不能为空');
-        }
-        
-        const result = await query(
-            `SELECT id, account, nickname, avatar, gender, role, signature, created_at
-             FROM users 
-             WHERE account = $1 AND is_banned = false`,
-            [account.trim()]
-        );
-        
-        if (result.rows.length === 0) {
-            return response.notFound(res, '用户不存在');
-        }
-        
-        return response.success(res, result.rows[0]);
-    } catch (error) {
-        console.error('Search user error:', error);
-        return response.serverError(res, '搜索失败');
-    }
-});
