@@ -317,3 +317,33 @@ router.get('/', auth, adminAuth, async (req, res) => {
 });
 
 module.exports = router;
+
+/**
+ * GET /api/users/search
+ * 按账号/ID搜索用户
+ */
+router.get('/search', auth, async (req, res) => {
+    try {
+        const { account } = req.query;
+        
+        if (!account || account.trim() === '') {
+            return response.badRequest(res, '账号不能为空');
+        }
+        
+        const result = await query(
+            `SELECT id, account, nickname, avatar, gender, role, signature, created_at
+             FROM users 
+             WHERE account = $1 AND is_banned = false`,
+            [account.trim()]
+        );
+        
+        if (result.rows.length === 0) {
+            return response.notFound(res, '用户不存在');
+        }
+        
+        return response.success(res, result.rows[0]);
+    } catch (error) {
+        console.error('Search user error:', error);
+        return response.serverError(res, '搜索失败');
+    }
+});

@@ -67,6 +67,7 @@ async function runMigrations() {
         console.log('✅ 管理员密码已同步');
 
         console.log('✅ 迁移检查完成');
+        await migrateFriendships();
     } catch (error) {
         console.error('❌ 迁移失败:', error.message);
     }
@@ -124,3 +125,34 @@ async function createTestAccounts() {
 }
 
 module.exports = { initDatabase };
+
+// 迁移：创建 friendships 表
+async function migrateFriendships() {
+    try {
+        const tableCheck = await pool.query(
+            "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'friendships')"
+        );
+        
+        if (!tableCheck.rows[0].exists) {
+            await pool.query(`
+                CREATE TABLE friendships (
+                    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    friend_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'blocked')),
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(user_id, friend_id)
+                )
+            `);
+            console.log('✅ 迁移：创建 friendships 表');
+        }
+        
+        // 添加索引
+        await pool.query(`CREATE INDEX IF NOT EXISTS idx_friendships_user ON friendships(user_id)`);
+        await pool.query(`CREATE INDEX IF NOT EXISTS idx_friendships_friend ON friendships(friend_id)`);
+        await pool.query(`CREATE INDEX IF NOT EXISTS idx_friendships_status ON friendships(status)`);
+    } catch (error) {
+        console.error('❌ 迁移 friendships 表失败:', error.message);
+    }
+}
