@@ -182,6 +182,29 @@ router.post('/', auth, async (req, res) => {
             return room;
         });
         
+        // 广播新房间创建事件给所有在线用户
+        try {
+            const io = req.app.get('io');
+            if (io) {
+                const roomData = {
+                    id: result.id,
+                    name: result.name,
+                    cover: result.cover,
+                    description: result.description,
+                    is_public: result.is_public,
+                    owner_id: result.owner_id,
+                    owner_nickname: req.user.nickname,
+                    owner_avatar: req.user.avatar,
+                    current_count: 1,
+                    created_at: result.created_at,
+                };
+                io.emit('new_room', roomData);
+                console.log(`[Rooms] Broadcasted new_room event for room ${result.id}`);
+            }
+        } catch (broadcastError) {
+            console.error('[Rooms] Failed to broadcast new_room:', broadcastError);
+        }
+        
         return response.created(res, result, '房间创建成功');
     } catch (error) {
         console.error('Create room error:', error);
@@ -269,8 +292,9 @@ router.delete('/:roomId', auth, async (req, res) => {
     try {
         const { roomId } = req.params;
         
+        // 检查房间
         const roomCheck = await query(
-            'SELECT owner_id FROM rooms WHERE id = $1',
+            'SELECT owner_id, status FROM rooms WHERE id = $1',
             [roomId]
         );
         
@@ -278,30 +302,41 @@ router.delete('/:roomId', auth, async (req, res) => {
             return response.notFound(res, '房间不存在');
         }
         
-        if (roomCheck.rows[0].owner_id !== req.user.id && req.user.role !== 'admin') {
+        const isOwner = roomCheck.rows[0].owner_id === req.user.id;
+        const isAdmin = req.user.role === 'admin';
+        
+        if (!isOwner && !isAdmin) {
             return response.forbidden(res, '只有房主或管理员可以关闭房间');
         }
         
+        // 关闭房间
         await transaction(async (client) => {
-            // 清除所有参与者
-            await client.query(
-                'DELETE FROM room_participants WHERE room_id = $1',
-                [roomId]
-            );
-            
-            // 清除所有麦位
-            await client.query(
-                'DELETE FROM room_seats WHERE room_id = $1',
-                [roomId]
-            );
-            
             // 更新房间状态
             await client.query(
-                `UPDATE rooms SET status = 'closed', current_count = 0
-                 WHERE id = $1`,
+                `UPDATE rooms SET status = 'closed', updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
                 [roomId]
             );
+            
+            // 清理麦位
+            await client.query('DELETE FROM room_seats WHERE room_id = $1', [roomId]);
+            
+            // 清理参与者
+            await client.query('DELETE FROM room_participants WHERE room_id = $1', [roomId]);
         });
+        
+        // 广播房间关闭事件
+        try {
+            const io = req.app.get('io');
+            if (io) {
+                io.to(`room:${roomId}`).emit('room_closed', {
+                    room_id: roomId,
+                    closed_by: req.user.nickname,
+                });
+                io.emit('room_deleted', { room_id: roomId });
+            }
+        } catch (broadcastError) {
+            console.error('[Rooms] Failed to broadcast room_closed:', broadcastError);
+        }
         
         return response.success(res, null, '房间已关闭');
     } catch (error) {
@@ -320,57 +355,50 @@ router.post('/:roomId/join', auth, async (req, res) => {
         const { password } = req.body;
         
         // 检查房间
-        const roomResult = await query(
-            `SELECT * FROM rooms WHERE id = $1 AND status = 'active'`,
+        const roomCheck = await query(
+            `SELECT r.*, u.nickname as owner_nickname, u.avatar as owner_avatar
+             FROM rooms r
+             LEFT JOIN users u ON r.owner_id = u.id
+             WHERE r.id = $1`,
             [roomId]
         );
         
-        if (roomResult.rows.length === 0) {
-            return response.notFound(res, '房间不存在或已关闭');
+        if (roomCheck.rows.length === 0) {
+            return response.notFound(res, '房间不存在');
         }
         
-        const room = roomResult.rows[0];
+        const room = roomCheck.rows[0];
         
-        // 检查私密房间密码
+        if (room.status !== 'active') {
+            return response.badRequest(res, '房间已关闭');
+        }
+        
+        // 检查密码
         if (!room.is_public && room.password && room.password !== password) {
             return response.unauthorized(res, '房间密码错误');
         }
         
-        // 检查是否已被禁言
-        const banCheck = await query(
-            `SELECT id FROM room_bans 
-             WHERE room_id = $1 AND user_id = $2 
-             AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)`,
+        // 加入房间
+        await query(
+            `INSERT INTO room_participants (room_id, user_id)
+             VALUES ($1, $2)
+             ON CONFLICT DO NOTHING`,
             [roomId, req.user.id]
         );
         
-        if (banCheck.rows.length > 0) {
-            return response.forbidden(res, '您已被禁言');
-        }
+        // 更新房间人数
+        await query(
+            'UPDATE rooms SET current_count = current_count + 1 WHERE id = $1',
+            [roomId]
+        );
         
-        // 加入房间
-        await transaction(async (client) => {
-            await client.query(
-                `INSERT INTO room_participants (room_id, user_id)
-                 VALUES ($1, $2)
-                 ON CONFLICT DO NOTHING`,
-                [roomId, req.user.id]
-            );
-            
-            await client.query(
-                'UPDATE rooms SET current_count = current_count + 1 WHERE id = $1',
-                [roomId]
-            );
-        });
-        
-        // 获取声网Token
-        const agoraToken = await generateAgoraToken(roomId, req.user.id, req.user.nickname || req.user.account);
+        // 生成 Agora Token
+        const agoraToken = generateAgoraToken(roomId, req.user.id, req.user.nickname);
         
         return response.success(res, {
-            room_id: roomId,
-            room_name: room.name,
             agora_token: agoraToken,
             channel_name: roomId,
+            room: room,
         }, '加入成功');
     } catch (error) {
         console.error('Join room error:', error);
@@ -386,8 +414,24 @@ router.post('/:roomId/leave', auth, async (req, res) => {
     try {
         const { roomId } = req.params;
         
+        // 检查房间
+        const roomCheck = await query(
+            'SELECT owner_id FROM rooms WHERE id = $1',
+            [roomId]
+        );
+        
+        if (roomCheck.rows.length === 0) {
+            return response.notFound(res, '房间不存在');
+        }
+        
+        // 房主不能直接离开，需要先关闭或转移
+        if (roomCheck.rows[0].owner_id === req.user.id) {
+            return response.badRequest(res, '房主不能直接离开房间，请先关闭或转移房间');
+        }
+        
+        // 离开房间
         await transaction(async (client) => {
-            // 离开所有麦位
+            // 下麦（如果还在麦上）
             await client.query(
                 'UPDATE room_seats SET user_id = NULL, join_at = NULL WHERE room_id = $1 AND user_id = $2',
                 [roomId, req.user.id]
@@ -775,6 +819,70 @@ router.get('/:roomId/bans', auth, async (req, res) => {
     } catch (error) {
         console.error('Get bans error:', error);
         return response.serverError(res, '获取失败');
+    }
+});
+
+/**
+ * POST /api/rooms/:roomId/transfer-owner
+ * 转移房主
+ */
+router.post('/:roomId/transfer-owner', auth, async (req, res) => {
+    try {
+        const { roomId } = req.params;
+        const { new_owner_id } = req.body;
+        
+        if (!new_owner_id) {
+            return response.badRequest(res, '新房主ID不能为空');
+        }
+        
+        // 检查房间
+        const roomCheck = await query(
+            'SELECT owner_id, status FROM rooms WHERE id = $1',
+            [roomId]
+        );
+        
+        if (roomCheck.rows.length === 0) {
+            return response.notFound(res, '房间不存在');
+        }
+        
+        if (roomCheck.rows[0].owner_id !== req.user.id) {
+            return response.forbidden(res, '只有房主可以转移权限');
+        }
+        
+        if (roomCheck.rows[0].status !== 'active') {
+            return response.badRequest(res, '房间已关闭');
+        }
+        
+        // 检查新房主是否在房间里
+        const participantCheck = await query(
+            'SELECT user_id FROM room_participants WHERE room_id = $1 AND user_id = $2',
+            [roomId, new_owner_id]
+        );
+        
+        if (participantCheck.rows.length === 0) {
+            return response.badRequest(res, '新房主需要在房间里');
+        }
+        
+        // 检查新房主是否存在
+        const userCheck = await query(
+            'SELECT id FROM users WHERE id = $1 AND is_banned = false',
+            [new_owner_id]
+        );
+        
+        if (userCheck.rows.length === 0) {
+            return response.notFound(res, '用户不存在');
+        }
+        
+        // 转移房主
+        await query(
+            'UPDATE rooms SET owner_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+            [new_owner_id, roomId]
+        );
+        
+        return response.success(res, { new_owner_id }, '房主转移成功');
+    } catch (error) {
+        console.error('Transfer owner error:', error);
+        return response.serverError(res, '操作失败');
     }
 });
 

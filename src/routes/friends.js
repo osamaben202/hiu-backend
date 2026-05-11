@@ -106,7 +106,7 @@ router.post('/request', async (req, res) => {
         
         // 检查目标用户是否存在
         const userCheck = await query(
-            'SELECT id FROM users WHERE id = $1 AND is_banned = false',
+            'SELECT id, nickname, avatar FROM users WHERE id = $1 AND is_banned = false',
             [user_id]
         );
         
@@ -134,12 +134,22 @@ router.post('/request', async (req, res) => {
         }
         
         // 创建好友申请
-        await query(`
+        const result = await query(`
             INSERT INTO friendships (user_id, friend_id, status)
             VALUES ($1, $2, 'pending')
+            RETURNING id
         `, [req.user.id, user_id]);
         
-        return response.created(res, null, '申请已发送');
+        // 通过 Socket 发送通知给目标用户
+        // 注意：这里需要获取 io 实例，但 Express 路由中无法直接访问
+        // 将在 app.js 中通过事件发射器来处理
+        
+        return response.created(res, {
+            request_id: result.rows[0].id,
+            friend_id: user_id,
+            friend_nickname: userCheck.rows[0].nickname,
+            friend_avatar: userCheck.rows[0].avatar,
+        }, '申请已发送');
     } catch (error) {
         console.error('Send friend request error:', error);
         return response.serverError(res, '发送失败');
@@ -156,13 +166,17 @@ router.post('/accept/:id', async (req, res) => {
         
         // 检查申请是否存在且是发给当前用户的
         const requestCheck = await query(`
-            SELECT id FROM friendships 
-            WHERE id = $1 AND friend_id = $2 AND status = 'pending'
+            SELECT f.id, f.user_id, u.nickname, u.avatar 
+            FROM friendships f
+            JOIN users u ON f.user_id = u.id
+            WHERE f.id = $1 AND f.friend_id = $2 AND f.status = 'pending'
         `, [id, req.user.id]);
         
         if (requestCheck.rows.length === 0) {
             return response.notFound(res, '申请不存在或已处理');
         }
+        
+        const requesterId = requestCheck.rows[0].user_id;
         
         // 更新为已接受
         await query(`

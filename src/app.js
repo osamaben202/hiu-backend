@@ -9,6 +9,7 @@ const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 const { Server } = require('socket.io');
+const EventEmitter = require('events');
 const config = require('./config');
 
 // 导入路由
@@ -29,18 +30,22 @@ const { initSocket } = require('./socket');
 // 导入数据库初始化
 const { initDatabase } = require('./models/init-db');
 
+// 事件发射器用于 Socket 通知
+const eventEmitter = new EventEmitter();
+
 const app = express();
 const server = http.createServer(app);
 
 // Socket.IO 配置
 const io = new Server(server, {
-    cors: {
-        origin: config.cors.origin,
-        credentials: true,
-    },
+    cors: config.cors,
     pingTimeout: 60000,
     pingInterval: 25000,
 });
+
+// 将 io 和 eventEmitter 附加到 app
+app.set('io', io);
+app.set('eventEmitter', eventEmitter);
 
 // 中间件
 app.use(cors(config.cors));
@@ -79,6 +84,27 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/rooms', roomRoutes);
 app.use('/api/gifts', giftRoutes);
+app.use('/api/friends', (req, res, next) => {
+    // 包装 res.json 来触发事件
+    const originalJson = res.json.bind(res);
+    res.json = function(data) {
+        // 如果是好友申请，发送 socket 通知
+        if (req.path === '/request' && originalJson) {
+            const io = req.app.get('io');
+            if (data && data.code === 0 && data.data && data.data.friend_id) {
+                const friendId = data.data.friend_id;
+                io.to(`user:${friendId}`).emit('friend_request', {
+                    requester_id: req.user?.id,
+                    requester_nickname: req.user?.nickname,
+                    requester_avatar: req.user?.avatar,
+                    request_id: data.data.request_id,
+                });
+            }
+        }
+        return originalJson(data);
+    };
+    next();
+});
 app.use('/api/friends', friendRoutes);
 app.use('/api/coins', coinRoutes);
 app.use('/api/diamonds', diamondRoutes);
