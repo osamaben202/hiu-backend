@@ -378,22 +378,24 @@ router.post('/:roomId/join', auth, async (req, res) => {
             return response.unauthorized(res, '房间密码错误');
         }
         
-        // 加入房间
-        await query(
+        // 加入房间（如果已经在房间里就不重复加）
+        const joinResult = await query(
             `INSERT INTO room_participants (room_id, user_id)
              VALUES ($1, $2)
              ON CONFLICT DO NOTHING`,
             [roomId, req.user.id]
         );
         
-        // 更新房间人数
-        await query(
-            'UPDATE rooms SET current_count = current_count + 1 WHERE id = $1',
-            [roomId]
-        );
+        // 只有新加入时才更新房间人数
+        if (joinResult.rowCount > 0) {
+            await query(
+                'UPDATE rooms SET current_count = current_count + 1 WHERE id = $1',
+                [roomId]
+            );
+        }
         
         // 生成 Agora Token
-        const agoraToken = generateAgoraToken(roomId, req.user.id, req.user.nickname);
+        const agoraToken = await generateAgoraToken(roomId, req.user.id, req.user.nickname);
         
         return response.success(res, {
             agora_token: agoraToken,

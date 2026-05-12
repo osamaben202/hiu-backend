@@ -235,6 +235,45 @@ router.post('/bind-email', auth, async (req, res) => {
     }
 });
 
+
+/**
+ * PUT /api/auth/change-password
+ * 修改密码
+ */
+router.put('/change-password', auth, async (req, res) => {
+    try {
+        const { old_password, new_password } = req.body;
+        
+        if (!old_password || !new_password) {
+            return response.badRequest(res, '请输入旧密码和新密码');
+        }
+        
+        if (new_password.length < 6) {
+            return response.badRequest(res, '新密码至少6位');
+        }
+        
+        const userResult = await query('SELECT * FROM users WHERE id = $1', [req.user.id]);
+        if (userResult.rows.length === 0) {
+            return response.notFound(res, '用户不存在');
+        }
+        
+        const user = userResult.rows[0];
+        
+        const isValid = await bcrypt.compare(old_password, user.password_hash);
+        if (!isValid) {
+            return response.unauthorized(res, '旧密码错误');
+        }
+        
+        const newHash = await bcrypt.hash(new_password, 10);
+        await query('UPDATE users SET password_hash = $1 WHERE id = $2', [newHash, user.id]);
+        
+        return response.success(res, null, '密码修改成功');
+    } catch (error) {
+        console.error('Change password error:', error);
+        return response.serverError(res, '密码修改失败');
+    }
+});
+
 /**
  * GET /api/auth/me
  * 获取当前用户信息
