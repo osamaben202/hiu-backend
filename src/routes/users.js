@@ -250,7 +250,7 @@ router.get('/search', auth, async (req, res) => {
              FROM users 
              WHERE (account ILIKE $1 OR nickname ILIKE $1) AND is_banned = false
              LIMIT 20`,
-            [\`%\${searchTerm.trim()}%\`]
+            [`%${searchTerm.trim()}%`]
         );
         
         return response.success(res, result.rows);
