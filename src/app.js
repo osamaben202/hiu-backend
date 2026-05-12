@@ -36,9 +36,15 @@ const eventEmitter = new EventEmitter();
 const app = express();
 const server = http.createServer(app);
 
-// Socket.IO 配置
+// Socket.IO 配置 - 添加必要的 transports 和 allowEIO3
 const io = new Server(server, {
-    cors: config.cors,
+    cors: {
+        origin: config.cors.origin,
+        credentials: config.cors.credentials,
+        methods: ['GET', 'POST'],
+    },
+    transports: ['polling', 'websocket'],  // 允许轮询和websocket
+    allowEIO3: true,  // 允许 Engine.IO v3 协议
     pingTimeout: 60000,
     pingInterval: 25000,
 });
