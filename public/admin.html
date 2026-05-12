@@ -800,16 +800,16 @@
                 showLoading();
                 const roomsResp = await apiCall('/api/rooms');
                 const data = roomsResp.data;
-                const rooms = data.rooms || data.data || [];
+                const rooms = data.list || data.rooms || data.data || [];
                 
                 const tbody = document.getElementById('roomsTableBody');
                 tbody.innerHTML = rooms.length ? rooms.map(room => `
                     <tr>
                         <td>${room.id || room._id || '-'}</td>
                         <td>${room.name || room.title || '-'}</td>
-                        <td>${room.hostName || room.ownerName || room.host_username || '-'}</td>
+                        <td>${room.owner_nickname || room.hostName || room.ownerName || '-'}</td>
                         <td>${room.type || room.roomType || '普通'}</td>
-                        <td>${room.onlineCount || room.memberCount || 0}</td>
+                        <td>${room.current_count || room.onlineCount || room.memberCount || 0}</td>
                         <td><span class="badge ${room.status === 'active' ? 'badge-approved' : 'badge-pending'}">${room.status === 'active' ? '活跃' : '未激活'}</span></td>
                         <td>${room.createdAt ? new Date(room.createdAt).toLocaleDateString() : '-'}</td>
                     </tr>

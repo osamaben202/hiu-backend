@@ -21,10 +21,10 @@ router.get('/stats', auth, adminAuth, async (req, res) => {
         const totalDiamonds = await query('SELECT SUM(diamond_balance) as total FROM users WHERE role = $1', ['host']);
         
         return response.success(res, {
-            total_users: parseInt(usersCount.rows[0].count),
-            active_rooms: parseInt(roomsCount.rows[0].count),
-            total_coins_in_circulation: parseFloat(totalCoins.rows[0].total || 0),
-            total_diamonds: parseFloat(totalDiamonds.rows[0].total || 0),
+            totalUsers: parseInt(usersCount.rows[0].count),
+            activeRooms: parseInt(roomsCount.rows[0].count),
+            totalCoins: parseFloat(totalCoins.rows[0].total || 0),
+            totalDiamonds: parseFloat(totalDiamonds.rows[0].total || 0),
         });
     } catch (error) {
         return response.serverError(res, 'Failed to get stats');
