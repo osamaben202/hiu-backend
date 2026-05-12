@@ -638,10 +638,11 @@
         async function loadStats() {
             try {
                 const data = await apiCall('/api/admin/stats');
-                document.getElementById('totalUsers').textContent = formatNumber(data.totalUsers || 0);
-                document.getElementById('activeRooms').textContent = formatNumber(data.activeRooms || 0);
-                document.getElementById('totalCoins').textContent = formatNumber(data.totalCoins || 0);
-                document.getElementById('totalDiamonds').textContent = formatNumber(data.totalDiamonds || 0);
+                const stats = data.data || data;
+                document.getElementById('totalUsers').textContent = formatNumber(stats.totalUsers || stats.total_users || 0);
+                document.getElementById('activeRooms').textContent = formatNumber(stats.activeRooms || stats.active_rooms || 0);
+                document.getElementById('totalCoins').textContent = formatNumber(stats.totalCoins || stats.total_coins_in_circulation || 0);
+                document.getElementById('totalDiamonds').textContent = formatNumber(stats.totalDiamonds || stats.total_diamonds || 0);
             } catch (err) {
                 console.error('Failed to load stats:', err);
             }
