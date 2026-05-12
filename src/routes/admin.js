@@ -319,6 +319,23 @@ router.put('/config/:key', auth, adminAuth, async (req, res) => {
     }
 });
 
+
+/**
+ * POST /api/admin/close-all-rooms
+ * 关闭所有活跃房间
+ */
+router.post('/close-all-rooms', auth, adminAuth, async (req, res) => {
+    try {
+        const result = await query("UPDATE rooms SET status = 'closed', current_count = 0 WHERE status = 'active'");
+        await query('UPDATE room_seats SET user_id = NULL, join_at = NULL');
+        await query('DELETE FROM room_participants');
+        return response.success(res, { closed: result.rowCount }, 'All rooms closed');
+    } catch (error) {
+        console.error('Close all rooms error:', error);
+        return response.serverError(res, '操作失败');
+    }
+});
+
 module.exports = router;
 
 /**

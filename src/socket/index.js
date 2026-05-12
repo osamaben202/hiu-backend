@@ -372,15 +372,78 @@ const initSocket = (io) => {
         });
 
         // 断开连接
-        socket.on('disconnect', () => {
+        socket.on('disconnect', async () => {
             console.log(`[Socket] User disconnected: ${socket.user.nickname}`);
             
-            // 如果在房间里，广播离开
-            if (socket.currentRoom) {
-                io.to(socket.currentRoom).emit('user_left', {
-                    user_id: socket.user.id,
-                    nickname: socket.user.nickname,
-                });
+            try {
+                // 如果在房间里，离开房间
+                if (socket.currentRoom) {
+                    const roomId = socket.currentRoom;
+                    io.to(roomId).emit('user_left', {
+                        user_id: socket.user.id,
+                        nickname: socket.user.nickname,
+                    });
+                    
+                    // 减少房间人数
+                    await query(
+                        'UPDATE rooms SET current_count = GREATEST(current_count - 1, 0) WHERE id = $1',
+                        [roomId]
+                    );
+                    await query(
+                        'DELETE FROM room_participants WHERE room_id = $1 AND user_id = $2',
+                        [roomId, socket.user.id]
+                    );
+                    // 释放麦位
+                    await query(
+                        'UPDATE room_seats SET user_id = NULL, join_at = NULL WHERE room_id = $1 AND user_id = $2',
+                        [roomId, socket.user.id]
+                    );
+                    io.to(roomId).emit('seat_update', { room_id: roomId });
+                }
+                
+                // 检查该用户是否是某个房间的房主，如果是则关闭房间
+                const ownedRooms = await query(
+                    "SELECT id, name FROM rooms WHERE owner_id = $1 AND status = 'active'",
+                    [socket.user.id]
+                );
+                
+                for (const room of ownedRooms.rows) {
+                    console.log(`[Socket] Closing room ${room.name} - owner disconnected`);
+                    
+                    // 通知房间内所有人房间已关闭
+                    io.to(room.id).emit('room_closed', {
+                        room_id: room.id,
+                        message: '房主已离线，房间已关闭',
+                    });
+                    
+                    // 清理房间参与者
+                    await query(
+                        'DELETE FROM room_participants WHERE room_id = $1',
+                        [room.id]
+                    );
+                    // 清理麦位
+                    await query(
+                        'UPDATE room_seats SET user_id = NULL, join_at = NULL WHERE room_id = $1',
+                        [room.id]
+                    );
+                    // 关闭房间
+                    await query(
+                        "UPDATE rooms SET status = 'closed', current_count = 0 WHERE id = $1",
+                        [room.id]
+                    );
+                    
+                    // 让所有人离开 socket room
+                    const sockets = await io.in(room.id).fetchSockets();
+                    for (const s of sockets) {
+                        s.leave(room.id);
+                        s.currentRoom = null;
+                    }
+                    
+                    // 广播房间列表更新
+                    io.emit('room_update', { action: 'close', room_id: room.id });
+                }
+            } catch (error) {
+                console.error('[Socket] Disconnect handler error:', error);
             }
         });
     });
