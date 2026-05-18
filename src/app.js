@@ -91,20 +91,34 @@ app.use('/api/users', userRoutes);
 app.use('/api/rooms', roomRoutes);
 app.use('/api/gifts', giftRoutes);
 app.use('/api/friends', (req, res, next) => {
-    // 包装 res.json 来触发事件
+    // 包装 res.json 来触发 socket 事件
     const originalJson = res.json.bind(res);
     res.json = function(data) {
-        // 如果是好友申请，发送 socket 通知
-        if (req.path === '/request' && originalJson) {
-            const io = req.app.get('io');
-            if (data && data.code === 0 && data.data && data.data.friend_id) {
+        const io = req.app.get('io');
+        if (io && data && data.code === 0) {
+            // 好友申请通知
+            if (req.path === '/request' && data.data && data.data.friend_id) {
                 const friendId = data.data.friend_id;
+                console.log(`[Socket] Emitting friend_request to user:${friendId}`);
                 io.to(`user:${friendId}`).emit('friend_request', {
                     requester_id: req.user?.id,
                     requester_nickname: req.user?.nickname,
                     requester_avatar: req.user?.avatar,
                     request_id: data.data.request_id,
                 });
+            }
+            // 好友接受通知
+            if (req.path.startsWith('/accept/') && data.data) {
+                // 通知申请人好友已接受
+                const requesterId = req.body?.requester_id || data.data?.user_id;
+                if (requesterId) {
+                    console.log(`[Socket] Emitting friend_accepted to user:${requesterId}`);
+                    io.to(`user:${requesterId}`).emit('friend_accepted', {
+                        friend_id: req.user?.id,
+                        friend_nickname: req.user?.nickname,
+                        friend_avatar: req.user?.avatar,
+                    });
+                }
             }
         }
         return originalJson(data);
