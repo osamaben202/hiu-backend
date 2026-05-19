@@ -17,8 +17,10 @@ const initSocket = (io) => {
     io.use(async (socket, next) => {
         try {
             const token = socket.handshake.auth.token || socket.handshake.query.token;
+            console.log('[Socket Auth] Connection attempt from:', socket.id, 'has auth.token:', !!socket.handshake.auth.token, 'has query.token:', !!socket.handshake.query.token);
             
             if (!token) {
+                console.log('[Socket Auth] REJECTED: No token provided');
                 return next(new Error('Authentication required'));
             }
             
@@ -47,7 +49,7 @@ const initSocket = (io) => {
     });
 
     io.on('connection', (socket) => {
-        console.log(`[Socket] User connected: ${socket.user.nickname} (${socket.user.id})`);
+        console.log(`[Socket] User connected: ${socket.user.nickname} (${socket.user.id}), socket.id: ${socket.id}, transport: ${socket.conn.transport.name}`);
         
         // 将用户socket加入用户房间，便于推送通知
         socket.join(`user:${socket.user.id}`);
