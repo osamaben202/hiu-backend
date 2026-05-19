@@ -370,3 +370,13 @@ router.post('/migrate', auth, adminAuth, async (req, res) => {
         return response.serverError(res, '迁移失败: ' + error.message);
     }
 });
+
+/**
+ * GET /api/admin/socket-status
+ * 查看socket在线状态
+ */
+router.get('/socket-status', async (req, res) => {
+    const { getOnlineStatus } = require('../socket');
+    const status = getOnlineStatus();
+    return res.json(status);
+});

@@ -9,7 +9,10 @@ const { query } = require('../models/db');
  * 初始化Socket.IO
  * @param {Server} io - Socket.IO服务器实例
  */
+let _io = null;
+
 const initSocket = (io) => {
+    _io = io;
     // JWT认证中间件
     io.use(async (socket, next) => {
         try {
@@ -449,4 +452,24 @@ const initSocket = (io) => {
     });
 };
 
-module.exports = { initSocket };
+// 获取在线socket状态
+const getOnlineStatus = () => {
+    const sockets = [];
+    if (_io) {
+        const connectedSockets = _io.sockets.sockets;
+        connectedSockets.forEach((socket) => {
+            sockets.push({
+                id: socket.id,
+                userId: socket.userId || socket.user?.id,
+                nickname: socket.user?.nickname,
+                rooms: Array.from(socket.rooms || []),
+            });
+        });
+    }
+    return {
+        totalConnections: sockets.length,
+        sockets: sockets,
+    };
+};
+
+module.exports = { initSocket, getOnlineStatus };

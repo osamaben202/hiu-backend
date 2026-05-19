@@ -184,6 +184,13 @@ app.use((err, req, res, next) => {
 // 初始化Socket.IO
 initSocket(io);
 
+// Socket status check (no auth required)
+app.get('/api/socket-status', (req, res) => {
+    const { getOnlineStatus } = require('./socket');
+    const status = getOnlineStatus();
+    res.json(status);
+});
+
 // 启动服务器
 const PORT = config.port;
 
