@@ -108,17 +108,14 @@ app.use('/api/friends', (req, res, next) => {
                 });
             }
             // 好友接受通知
-            if (req.path.startsWith('/accept/') && data.data) {
-                // 通知申请人好友已接受
-                const requesterId = req.body?.requester_id || data.data?.user_id;
-                if (requesterId) {
-                    console.log(`[Socket] Emitting friend_accepted to user:${requesterId}`);
-                    io.to(`user:${requesterId}`).emit('friend_accepted', {
-                        friend_id: req.user?.id,
-                        friend_nickname: req.user?.nickname,
-                        friend_avatar: req.user?.avatar,
-                    });
-                }
+            if (req.path.startsWith('/accept/') && data.data && data.data.requester_id) {
+                const requesterId = data.data.requester_id;
+                console.log(`[Socket] Emitting friend_accepted to user:${requesterId}`);
+                io.to(`user:${requesterId}`).emit('friend_accepted', {
+                    friend_id: req.user?.id,
+                    friend_nickname: req.user?.nickname,
+                    friend_avatar: req.user?.avatar,
+                });
             }
         }
         return originalJson(data);

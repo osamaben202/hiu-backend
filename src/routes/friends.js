@@ -184,7 +184,12 @@ router.post('/accept/:id', async (req, res) => {
             WHERE id = $1
         `, [id]);
         
-        return response.success(res, null, '已接受好友申请');
+        return response.success(res, {
+            requester_id: requesterId,
+            friend_id: req.user.id,
+            friend_nickname: req.user.nickname,
+            friend_avatar: req.user.avatar,
+        }, '已接受好友申请');
     } catch (error) {
         console.error('Accept friend request error:', error);
         return response.serverError(res, '操作失败');
