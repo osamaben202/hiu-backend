@@ -888,4 +888,64 @@ router.post('/:roomId/transfer-owner', auth, async (req, res) => {
     }
 });
 
+
+/**
+ * POST /api/rooms/:roomId/messages
+ * 发送房间消息（HTTP fallback，用于socket不可用时）
+ */
+router.post('/:roomId/messages', auth, async (req, res) => {
+    try {
+        const { roomId } = req.params;
+        const { content, type = 'text' } = req.body;
+        
+        if (!content) {
+            return response.badRequest(res, '消息内容不能为空');
+        }
+        
+        // 检查房间是否存在
+        const roomCheck = await query(
+            "SELECT id FROM rooms WHERE id = $1 AND status = 'active'",
+            [roomId]
+        );
+        
+        if (roomCheck.rows.length === 0) {
+            return response.notFound(res, '房间不存在或已关闭');
+        }
+        
+        // 保存消息到数据库
+        const messageResult = await query(
+            `INSERT INTO messages (room_id, sender_id, type, content)
+             VALUES ($1, $2, $3, $4)
+             RETURNING id, created_at`,
+            [roomId, req.user.id, type, content]
+        );
+        
+        const messageData = {
+            id: messageResult.rows[0].id,
+            room_id: roomId,
+            sender_id: req.user.id,
+            sender_nickname: req.user.nickname,
+            sender_avatar: req.user.avatar,
+            type,
+            content,
+            created_at: messageResult.rows[0].created_at,
+        };
+        
+        // 尝试通过Socket.IO广播
+        try {
+            const io = req.app.get('io');
+            if (io) {
+                io.to(roomId).emit('chat_message', messageData);
+            }
+        } catch (socketError) {
+            console.error('[Rooms] Socket broadcast failed:', socketError);
+        }
+        
+        return response.success(res, messageData, '消息发送成功');
+    } catch (error) {
+        console.error('Send room message error:', error);
+        return response.serverError(res, '发送失败');
+    }
+});
+
 module.exports = router;
