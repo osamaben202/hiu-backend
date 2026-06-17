@@ -144,6 +144,21 @@ router.post('/request', async (req, res) => {
         // 注意：这里需要获取 io 实例，但 Express 路由中无法直接访问
         // 将在 app.js 中通过事件发射器来处理
         
+        // 通过 Socket 通知目标用户
+        try {
+            const io = req.app.get('io');
+            if (io) {
+                io.to('user:' + user_id).emit('friend_request', {
+                    request_id: result.rows[0].id,
+                    requester_id: req.user.id,
+                    requester_nickname: req.user.nickname,
+                    requester_avatar: req.user.avatar,
+                });
+            }
+        } catch (socketErr) {
+            console.error('[Friends] Socket notification error:', socketErr);
+        }
+        
         return response.created(res, {
             request_id: result.rows[0].id,
             friend_id: user_id,
@@ -183,6 +198,21 @@ router.post('/accept/:id', async (req, res) => {
             UPDATE friendships SET status = 'accepted', updated_at = CURRENT_TIMESTAMP
             WHERE id = $1
         `, [id]);
+        
+        // 通过 Socket 通知申请人
+        try {
+            const io = req.app.get('io');
+            if (io) {
+                io.to('user:' + requesterId).emit('friend_accepted', {
+                    requester_id: requesterId,
+                    acceptor_id: req.user.id,
+                    acceptor_nickname: req.user.nickname,
+                    acceptor_avatar: req.user.avatar,
+                });
+            }
+        } catch (socketErr) {
+            console.error('[Friends] Socket notification error:', socketErr);
+        }
         
         return response.success(res, {
             requester_id: requesterId,

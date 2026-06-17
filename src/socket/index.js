@@ -376,7 +376,7 @@ const initSocket = (io) => {
             }
         });
 
-        // 断开连接
+        // 断开连接 - 只清理当前房间参与者状态，不自动关闭房间
         socket.on('disconnect', async () => {
             console.log(`[Socket] User disconnected: ${socket.user.nickname}`);
             
@@ -406,47 +406,8 @@ const initSocket = (io) => {
                     io.to(roomId).emit('seat_update', { room_id: roomId });
                 }
                 
-                // 检查该用户是否是某个房间的房主，如果是则关闭房间
-                const ownedRooms = await query(
-                    "SELECT id, name FROM rooms WHERE owner_id = $1 AND status = 'active'",
-                    [socket.user.id]
-                );
-                
-                for (const room of ownedRooms.rows) {
-                    console.log(`[Socket] Closing room ${room.name} - owner disconnected`);
-                    
-                    // 通知房间内所有人房间已关闭
-                    io.to(room.id).emit('room_closed', {
-                        room_id: room.id,
-                        message: '房主已离线，房间已关闭',
-                    });
-                    
-                    // 清理房间参与者
-                    await query(
-                        'DELETE FROM room_participants WHERE room_id = $1',
-                        [room.id]
-                    );
-                    // 清理麦位
-                    await query(
-                        'UPDATE room_seats SET user_id = NULL, join_at = NULL WHERE room_id = $1',
-                        [room.id]
-                    );
-                    // 关闭房间
-                    await query(
-                        "UPDATE rooms SET status = 'closed', current_count = 0 WHERE id = $1",
-                        [room.id]
-                    );
-                    
-                    // 让所有人离开 socket room
-                    const sockets = await io.in(room.id).fetchSockets();
-                    for (const s of sockets) {
-                        s.leave(room.id);
-                        s.currentRoom = null;
-                    }
-                    
-                    // 广播房间列表更新
-                    io.emit('room_update', { action: 'close', room_id: room.id });
-                }
+                // 不再自动关闭房间 - 房主断连时房间保持 active，其他用户仍可进入
+                console.log(`[Socket] ${socket.user.nickname} disconnected, rooms remain active`);
             } catch (error) {
                 console.error('[Socket] Disconnect handler error:', error);
             }
